@@ -1,286 +1,289 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBusinessSchema, insertFacilitySchema, insertBookingSchema, insertReviewSchema } from "@shared/schema";
-import { z } from "zod";
+import { login, register } from "./auth";
+
+// Simple session storage in memory (for demo purposes)
+const sessions = new Map<string, { userId: string; expires: Date }>();
+
+function generateSessionId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+function isAuthenticated(req: any): { isAuthenticated: boolean; userId?: string } {
+  const sessionId = req.headers.authorization?.replace('Bearer ', '') || req.cookies?.sessionId;
+  
+  if (!sessionId) {
+    return { isAuthenticated: false };
+  }
+  
+  const session = sessions.get(sessionId);
+  if (!session || session.expires < new Date()) {
+    sessions.delete(sessionId);
+    return { isAuthenticated: false };
+  }
+  
+  return { isAuthenticated: true, userId: session.userId };
+}
+
+function requireAuth(req: any, res: any, next: any) {
+  const auth = isAuthenticated(req);
+  if (!auth.isAuthenticated) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  req.userId = auth.userId;
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
-
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password required' });
+      }
+      
+      const result = await login(username, password);
+      
+      if (!result.success) {
+        return res.status(401).json({ message: result.message });
+      }
+      
+      // Create session
+      const sessionId = generateSessionId();
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      sessions.set(sessionId, { userId: result.user!.id, expires });
+      
+      res.cookie('sessionId', sessionId, { 
+        httpOnly: true, 
+        expires,
+        sameSite: 'strict'
+      });
+      
+      res.json({ 
+        success: true, 
+        user: result.user,
+        sessionId 
+      });
     } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed" });
     }
   });
 
-  // Update user role
-  app.patch('/api/auth/user/role', isAuthenticated, async (req: any, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { role } = req.body;
+      const { username, email, password, firstName, lastName, role } = req.body;
       
-      if (!["customer", "business"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role" });
+      if (!username || !email || !password || !role) {
+        return res.status(400).json({ 
+          message: 'Username, email, password, and role are required' 
+        });
       }
-
-      const user = await storage.upsertUser({
-        id: userId,
-        email: req.user.claims.email,
-        firstName: req.user.claims.first_name,
-        lastName: req.user.claims.last_name,
-        profileImageUrl: req.user.claims.profile_image_url,
-        role,
+      
+      if (!['customer', 'business'].includes(role)) {
+        return res.status(400).json({ 
+          message: 'Role must be either "customer" or "business"' 
+        });
+      }
+      
+      const result = await register({
+        username,
+        email,
+        password,
+        firstName,
+        lastName,
+        role
       });
-
-      res.json(user);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.message });
+      }
+      
+      // Create session for new user
+      const sessionId = generateSessionId();
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      sessions.set(sessionId, { userId: result.user!.id, expires });
+      
+      res.cookie('sessionId', sessionId, { 
+        httpOnly: true, 
+        expires,
+        sameSite: 'strict'
+      });
+      
+      res.json({ 
+        success: true, 
+        user: result.user,
+        sessionId 
+      });
     } catch (error) {
-      console.error("Error updating user role:", error);
-      res.status(500).json({ message: "Failed to update user role" });
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed" });
     }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    const sessionId = req.cookies?.sessionId;
+    if (sessionId) {
+      sessions.delete(sessionId);
+      res.clearCookie('sessionId');
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
+  });
+
+  app.get('/api/auth/user', (req, res) => {
+    const auth = isAuthenticated(req);
+    if (!auth.isAuthenticated) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    
+    storage.getUser(auth.userId!).then(user => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    }).catch(error => {
+      console.error("Get user error:", error);
+      res.status(500).json({ message: "Failed to get user" });
+    });
   });
 
   // Business routes
-  app.post('/api/business', isAuthenticated, async (req: any, res) => {
+  app.post('/api/businesses', requireAuth, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const businessData = insertBusinessSchema.parse({ ...req.body, userId });
-      
-      const business = await storage.createBusiness(businessData);
-      
-      // Update user role to business
-      await storage.upsertUser({
-        id: userId,
-        email: req.user.claims.email,
-        firstName: req.user.claims.first_name,
-        lastName: req.user.claims.last_name,
-        profileImageUrl: req.user.claims.profile_image_url,
-        role: "business",
-      });
+      const user = await storage.getUser(req.userId);
+      if (!user || user.role !== 'business') {
+        return res.status(403).json({ message: 'Business role required' });
+      }
 
+      const business = await storage.createBusiness({
+        ...req.body,
+        userId: req.userId
+      });
+      
       res.json(business);
     } catch (error) {
-      console.error("Error creating business:", error);
+      console.error("Create business error:", error);
       res.status(500).json({ message: "Failed to create business" });
     }
   });
 
-  app.get('/api/business/my', isAuthenticated, async (req: any, res) => {
+  app.get('/api/businesses/my', requireAuth, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const business = await storage.getBusinessByUserId(userId);
+      const business = await storage.getBusinessByUserId(req.userId);
       res.json(business);
     } catch (error) {
-      console.error("Error fetching business:", error);
-      res.status(500).json({ message: "Failed to fetch business" });
-    }
-  });
-
-  app.patch('/api/business/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const businessId = parseInt(req.params.id);
-      const updates = req.body;
-      
-      const business = await storage.updateBusiness(businessId, updates);
-      res.json(business);
-    } catch (error) {
-      console.error("Error updating business:", error);
-      res.status(500).json({ message: "Failed to update business" });
+      console.error("Get business error:", error);
+      res.status(500).json({ message: "Failed to get business" });
     }
   });
 
   // Facility routes
-  app.post('/api/facilities', isAuthenticated, async (req: any, res) => {
-    try {
-      const facilityData = insertFacilitySchema.parse(req.body);
-      const facility = await storage.createFacility(facilityData);
-      res.json(facility);
-    } catch (error) {
-      console.error("Error creating facility:", error);
-      res.status(500).json({ message: "Failed to create facility" });
-    }
-  });
-
   app.get('/api/facilities/search', async (req, res) => {
     try {
-      const { location, sportType, minPrice, maxPrice, date } = req.query;
-      
-      const filters: any = {};
-      if (location) filters.location = location as string;
-      if (sportType) filters.sportType = sportType as string;
-      if (minPrice) filters.minPrice = parseFloat(minPrice as string);
-      if (maxPrice) filters.maxPrice = parseFloat(maxPrice as string);
-      if (date) filters.date = date as string;
+      const filters = {
+        location: req.query.location as string,
+        sportType: req.query.sportType as string,
+        minPrice: req.query.minPrice ? Number(req.query.minPrice) : undefined,
+        maxPrice: req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
+        date: req.query.date as string,
+      };
 
       const facilities = await storage.searchFacilities(filters);
       res.json(facilities);
     } catch (error) {
-      console.error("Error searching facilities:", error);
+      console.error("Search facilities error:", error);
       res.status(500).json({ message: "Failed to search facilities" });
     }
   });
 
-  app.get('/api/facilities/business/:businessId', isAuthenticated, async (req, res) => {
+  app.post('/api/facilities', requireAuth, async (req, res) => {
     try {
-      const businessId = parseInt(req.params.businessId);
+      const user = await storage.getUser(req.userId);
+      if (!user || user.role !== 'business') {
+        return res.status(403).json({ message: 'Business role required' });
+      }
+
+      const business = await storage.getBusinessByUserId(req.userId);
+      if (!business) {
+        return res.status(400).json({ message: 'Business profile required' });
+      }
+
+      const facility = await storage.createFacility({
+        ...req.body,
+        businessId: business.id
+      });
+      
+      res.json(facility);
+    } catch (error) {
+      console.error("Create facility error:", error);
+      res.status(500).json({ message: "Failed to create facility" });
+    }
+  });
+
+  app.get('/api/facilities/business/:businessId', async (req, res) => {
+    try {
+      const businessId = Number(req.params.businessId);
       const facilities = await storage.getFacilitiesByBusinessId(businessId);
       res.json(facilities);
     } catch (error) {
-      console.error("Error fetching facilities:", error);
-      res.status(500).json({ message: "Failed to fetch facilities" });
-    }
-  });
-
-  app.get('/api/facilities/:id', async (req, res) => {
-    try {
-      const facilityId = parseInt(req.params.id);
-      const facility = await storage.getFacilityById(facilityId);
-      
-      if (!facility) {
-        return res.status(404).json({ message: "Facility not found" });
-      }
-
-      const rating = await storage.getFacilityRating(facilityId);
-      res.json({ ...facility, ...rating });
-    } catch (error) {
-      console.error("Error fetching facility:", error);
-      res.status(500).json({ message: "Failed to fetch facility" });
-    }
-  });
-
-  app.patch('/api/facilities/:id', isAuthenticated, async (req, res) => {
-    try {
-      const facilityId = parseInt(req.params.id);
-      const updates = req.body;
-      
-      const facility = await storage.updateFacility(facilityId, updates);
-      res.json(facility);
-    } catch (error) {
-      console.error("Error updating facility:", error);
-      res.status(500).json({ message: "Failed to update facility" });
-    }
-  });
-
-  app.delete('/api/facilities/:id', isAuthenticated, async (req, res) => {
-    try {
-      const facilityId = parseInt(req.params.id);
-      await storage.deleteFacility(facilityId);
-      res.json({ message: "Facility deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting facility:", error);
-      res.status(500).json({ message: "Failed to delete facility" });
+      console.error("Get facilities error:", error);
+      res.status(500).json({ message: "Failed to get facilities" });
     }
   });
 
   // Booking routes
-  app.post('/api/bookings', isAuthenticated, async (req: any, res) => {
+  app.post('/api/bookings', requireAuth, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const bookingData = insertBookingSchema.parse({ ...req.body, userId });
+      const booking = await storage.createBooking({
+        ...req.body,
+        userId: req.userId
+      });
       
-      // Check availability
-      const isAvailable = await storage.checkTimeSlotAvailability(
-        bookingData.facilityId,
-        bookingData.bookingDate.toISOString().split('T')[0],
-        bookingData.startTime,
-        bookingData.endTime
-      );
-
-      if (!isAvailable) {
-        return res.status(400).json({ message: "Time slot is not available" });
-      }
-
-      const booking = await storage.createBooking(bookingData);
       res.json(booking);
     } catch (error) {
-      console.error("Error creating booking:", error);
+      console.error("Create booking error:", error);
       res.status(500).json({ message: "Failed to create booking" });
     }
   });
 
-  app.get('/api/bookings/my', isAuthenticated, async (req: any, res) => {
+  app.get('/api/bookings/my', requireAuth, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const bookings = await storage.getBookingsByUserId(userId);
+      const bookings = await storage.getBookingsByUserId(req.userId);
       res.json(bookings);
     } catch (error) {
-      console.error("Error fetching bookings:", error);
-      res.status(500).json({ message: "Failed to fetch bookings" });
-    }
-  });
-
-  app.get('/api/bookings/business/:businessId', isAuthenticated, async (req, res) => {
-    try {
-      const businessId = parseInt(req.params.businessId);
-      const bookings = await storage.getBookingsByBusinessId(businessId);
-      res.json(bookings);
-    } catch (error) {
-      console.error("Error fetching business bookings:", error);
-      res.status(500).json({ message: "Failed to fetch business bookings" });
-    }
-  });
-
-  app.patch('/api/bookings/:id/status', isAuthenticated, async (req, res) => {
-    try {
-      const bookingId = parseInt(req.params.id);
-      const { status, paymentStatus } = req.body;
-      
-      const booking = await storage.updateBookingStatus(bookingId, status, paymentStatus);
-      res.json(booking);
-    } catch (error) {
-      console.error("Error updating booking status:", error);
-      res.status(500).json({ message: "Failed to update booking status" });
-    }
-  });
-
-  app.get('/api/bookings/availability/:facilityId', async (req, res) => {
-    try {
-      const facilityId = parseInt(req.params.facilityId);
-      const { date, startTime, endTime } = req.query;
-      
-      const isAvailable = await storage.checkTimeSlotAvailability(
-        facilityId,
-        date as string,
-        startTime as string,
-        endTime as string
-      );
-
-      res.json({ available: isAvailable });
-    } catch (error) {
-      console.error("Error checking availability:", error);
-      res.status(500).json({ message: "Failed to check availability" });
+      console.error("Get bookings error:", error);
+      res.status(500).json({ message: "Failed to get bookings" });
     }
   });
 
   // Review routes
-  app.post('/api/reviews', isAuthenticated, async (req: any, res) => {
+  app.post('/api/reviews', requireAuth, async (req, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const reviewData = insertReviewSchema.parse({ ...req.body, userId });
+      const review = await storage.createReview({
+        ...req.body,
+        userId: req.userId
+      });
       
-      const review = await storage.createReview(reviewData);
       res.json(review);
     } catch (error) {
-      console.error("Error creating review:", error);
+      console.error("Create review error:", error);
       res.status(500).json({ message: "Failed to create review" });
     }
   });
 
   app.get('/api/reviews/facility/:facilityId', async (req, res) => {
     try {
-      const facilityId = parseInt(req.params.facilityId);
+      const facilityId = Number(req.params.facilityId);
       const reviews = await storage.getReviewsByFacilityId(facilityId);
       res.json(reviews);
     } catch (error) {
-      console.error("Error fetching reviews:", error);
-      res.status(500).json({ message: "Failed to fetch reviews" });
+      console.error("Get reviews error:", error);
+      res.status(500).json({ message: "Failed to get reviews" });
     }
   });
 
