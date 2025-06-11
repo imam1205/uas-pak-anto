@@ -159,10 +159,10 @@ export default function SearchFilters({ filters, onFiltersChange, onSearch }: Se
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Semua Jarak</SelectItem>
-                <SelectItem value="1">< 1 km</SelectItem>
-                <SelectItem value="5">< 5 km</SelectItem>
-                <SelectItem value="10">< 10 km</SelectItem>
-                <SelectItem value="20">< 20 km</SelectItem>
+                <SelectItem value="1">1 km</SelectItem>
+                <SelectItem value="5">5 km</SelectItem>
+                <SelectItem value="10">10 km</SelectItem>
+                <SelectItem value="20">20 km</SelectItem>
               </SelectContent>
             </Select>
           </div>

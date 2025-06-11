@@ -11,6 +11,7 @@ import FacilityDetails from "@/pages/FacilityDetails";
 import MyBookings from "@/pages/MyBookings";
 import Navigation from "@/components/Navigation";
 import NotFound from "@/pages/not-found";
+import Login from "./pages/Login";
 
 function Router() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -31,6 +32,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route component={Landing} />
+        <Route path='/login' component={Login} />
       </Switch>
     );
   }
@@ -39,7 +41,7 @@ function Router() {
     <>
       <Navigation user={user} />
       <Switch>
-        <Route path="/" component={user?.role === "business" ? BusinessDashboard : CustomerHome} />
+        {/* <Route path="/" component={user?.role === "business" ? BusinessDashboard : CustomerHome} /> */}
         <Route path="/facility/:id" component={FacilityDetails} />
         <Route path="/my-bookings" component={MyBookings} />
         <Route path="/dashboard" component={BusinessDashboard} />
