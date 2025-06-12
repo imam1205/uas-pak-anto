@@ -14,52 +14,58 @@ import NotFound from "@/pages/not-found";
 import Login from "./pages/Login";
 
 function Router() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+	const { user, isAuthenticated, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sport-blue mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+	if (isLoading) {
+		return (
+			<div className="min-h-screen flex items-center justify-center">
+				<div className="text-center">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sport-blue mx-auto mb-4"></div>
+					<p className="text-gray-600">Loading...</p>
+				</div>
+			</div>
+		);
+	}
 
-  if (!isAuthenticated) {
-    return (
-      <Switch>
-        <Route path="/" component={Landing} />
-        <Route component={Landing} />
-        <Route path='/login' component={Login} />
-      </Switch>
-    );
-  }
+	if (!isAuthenticated) {
+		return (
+			<Switch>
+				<Route path="/" component={Landing} />
+				<Route path="/login" component={Login} />
+			</Switch>
+		);
+	}
 
-  return (
-    <>
-      <Navigation user={user} />
-      <Switch>
-        {/* <Route path="/" component={user?.role === "business" ? BusinessDashboard : CustomerHome} /> */}
-        <Route path="/facility/:id" component={FacilityDetails} />
-        <Route path="/my-bookings" component={MyBookings} />
-        <Route path="/dashboard" component={BusinessDashboard} />
-        <Route component={NotFound} />
-      </Switch>
-    </>
-  );
+	return (
+		<>
+			<Navigation user={user} />
+			<Switch>
+				<Route
+					path="/"
+					component={
+						user?.role === "business"
+							? BusinessDashboard
+							: CustomerHome
+					}
+				/>
+				<Route path="/facility/:id" component={FacilityDetails} />
+				<Route path="/my-bookings" component={MyBookings} />
+				<Route path="/dashboard" component={BusinessDashboard} />
+				<Route component={NotFound} />
+			</Switch>
+		</>
+	);
 }
 
 function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
+	return (
+		<QueryClientProvider client={queryClient}>
+			<TooltipProvider>
+				<Toaster />
+				<Router />
+			</TooltipProvider>
+		</QueryClientProvider>
+	);
 }
 
 export default App;
