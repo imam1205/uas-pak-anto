@@ -274,7 +274,13 @@ export default function BusinessDashboard() {
                           ) / facilities.length
                         : 0;
 
+        const pendingBookings = bookings.filter((booking: any) => booking.status === "pending");
         const recentBookings = bookings.slice(0, 5);
+
+        // Handle booking approval
+        const handleBookingApproval = (bookingId: number, status: "approved" | "rejected") => {
+                updateBookingStatusMutation.mutate({ bookingId, status });
+        };
 
         if (businessLoading) {
                 return (
@@ -728,8 +734,64 @@ export default function BusinessDashboard() {
                                                 </Card>
                                         </div>
 
-                                        {/* Recent Bookings */}
+                                        {/* Pending Bookings - Approval System */}
                                         <div>
+                                                <Card className="mb-6">
+                                                        <CardHeader>
+                                                                <CardTitle className="flex items-center justify-between">
+                                                                        <span>Pemesanan Menunggu Persetujuan</span>
+                                                                        <Badge variant="destructive" className="ml-2">
+                                                                                {pendingBookings.length}
+                                                                        </Badge>
+                                                                </CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                                {pendingBookings.length === 0 ? (
+                                                                        <div className="text-center py-4 text-gray-500">
+                                                                                Tidak ada pemesanan yang menunggu persetujuan
+                                                                        </div>
+                                                                ) : (
+                                                                        <div className="space-y-4">
+                                                                                {pendingBookings.map((booking: any) => (
+                                                                                        <div key={booking.id} className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                                                                                                <div className="flex justify-between items-start">
+                                                                                                        <div className="flex-1">
+                                                                                                                <h4 className="font-medium text-gray-900">{booking.facility?.name}</h4>
+                                                                                                                <p className="text-sm text-gray-600">{booking.customerName}</p>
+                                                                                                                <p className="text-sm text-gray-500">
+                                                                                                                        {new Date(booking.bookingDate).toLocaleDateString('id-ID')} • {booking.startTime} - {booking.endTime}
+                                                                                                                </p>
+                                                                                                                <p className="text-sm font-medium text-gray-900 mt-1">
+                                                                                                                        Rp {parseFloat(booking.totalPrice).toLocaleString()}
+                                                                                                                </p>
+                                                                                                        </div>
+                                                                                                        <div className="flex space-x-2 ml-4">
+                                                                                                                <Button
+                                                                                                                        size="sm"
+                                                                                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                                                                                        onClick={() => handleBookingApproval(booking.id, "approved")}
+                                                                                                                        disabled={updateBookingStatusMutation.isPending}
+                                                                                                                >
+                                                                                                                        Setujui
+                                                                                                                </Button>
+                                                                                                                <Button
+                                                                                                                        size="sm"
+                                                                                                                        variant="destructive"
+                                                                                                                        onClick={() => handleBookingApproval(booking.id, "rejected")}
+                                                                                                                        disabled={updateBookingStatusMutation.isPending}
+                                                                                                                >
+                                                                                                                        Tolak
+                                                                                                                </Button>
+                                                                                                        </div>
+                                                                                                </div>
+                                                                                        </div>
+                                                                                ))}
+                                                                        </div>
+                                                                )}
+                                                        </CardContent>
+                                                </Card>
+
+                                                {/* Recent Bookings */}
                                                 <Card>
                                                         <CardHeader>
                                                                 <CardTitle>Pemesanan Terbaru</CardTitle>

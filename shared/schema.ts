@@ -55,8 +55,10 @@ export interface Booking {
         totalPrice: string;
         customerName: string;
         customerPhone: string;
-        status: "pending" | "approved" | "rejected" | "completed" | "cancelled";
+        status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "cancellation_requested";
         paymentStatus: "pending" | "paid" | "failed" | "refunded";
+        cancellationReason?: string;
+        cancellationRequestedAt?: Date;
         notes?: string;
         createdAt: Date;
         updatedAt: Date;
