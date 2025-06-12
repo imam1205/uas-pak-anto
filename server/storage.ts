@@ -63,8 +63,9 @@ export interface IStorage {
         ): Promise<(Booking & { facility: Facility; user: User })[]>;
         updateBookingStatus(
                 id: number,
-                status: "pending" | "approved" | "rejected" | "completed" | "cancelled",
-                paymentStatus?: "pending" | "paid" | "failed" | "refunded"
+                status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "cancellation_requested",
+                paymentStatus?: "pending" | "paid" | "failed" | "refunded",
+                cancellationReason?: string
         ): Promise<Booking>;
         getBookingById(id: number): Promise<Booking | undefined>;
         checkTimeSlotAvailability(
@@ -495,14 +496,17 @@ export class MemoryStorage implements IStorage {
 
         async updateBookingStatus(
                 id: number,
-                status: "pending" | "approved" | "rejected" | "completed" | "cancelled",
-                paymentStatus?: "pending" | "paid" | "failed" | "refunded"
+                status: "pending" | "approved" | "rejected" | "completed" | "cancelled" | "cancellation_requested",
+                paymentStatus?: "pending" | "paid" | "failed" | "refunded",
+                cancellationReason?: string
         ): Promise<Booking> {
                 const booking = this.bookings.get(id);
                 if (!booking) throw new Error("Booking not found");
 
                 booking.status = status;
                 if (paymentStatus) booking.paymentStatus = paymentStatus;
+                if (cancellationReason) (booking as any).cancellationReason = cancellationReason;
+                if (status === "cancellation_requested") (booking as any).cancellationRequestedAt = new Date();
                 booking.updatedAt = new Date();
 
                 this.bookings.set(id, booking);

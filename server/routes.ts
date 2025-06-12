@@ -301,17 +301,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         app.patch("/api/bookings/:bookingId/status", requireAuth, async (req, res) => {
                 try {
                         const bookingId = Number(req.params.bookingId);
-                        const { status, paymentStatus } = req.body;
+                        const { status, paymentStatus, cancellationReason } = req.body;
                         
                         const booking = await storage.updateBookingStatus(
                                 bookingId,
                                 status,
-                                paymentStatus
+                                paymentStatus,
+                                cancellationReason
                         );
                         res.json(booking);
                 } catch (error) {
                         console.error("Update booking status error:", error);
                         res.status(500).json({ message: "Failed to update booking status" });
+                }
+        });
+
+        // New endpoint for cancellation requests
+        app.patch("/api/bookings/:bookingId/request-cancellation", requireAuth, async (req, res) => {
+                try {
+                        const bookingId = Number(req.params.bookingId);
+                        const { cancellationReason } = req.body;
+                        
+                        const booking = await storage.updateBookingStatus(
+                                bookingId,
+                                "cancellation_requested",
+                                undefined,
+                                cancellationReason
+                        );
+                        res.json(booking);
+                } catch (error) {
+                        console.error("Request cancellation error:", error);
+                        res.status(500).json({ message: "Failed to request cancellation" });
                 }
         });
 

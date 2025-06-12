@@ -45,6 +45,7 @@ export default function MyBookings() {
         const [reviewModalOpen, setReviewModalOpen] = useState(false);
         const [selectedBooking, setSelectedBooking] = useState<any>(null);
         const [cancelModalOpen, setCancelModalOpen] = useState(false);
+        const [cancellationReason, setCancellationReason] = useState("");
 
         // Fetch bookings
         const { data: bookings = [], isLoading } = useQuery<Booking[]>({
@@ -56,24 +57,25 @@ export default function MyBookings() {
                 },
         });
 
-        // Cancel booking mutation
-        const cancelBookingMutation = useMutation({
-                mutationFn: (bookingId: number) =>
-                        apiRequest("PATCH", `/api/bookings/${bookingId}/status`, {
-                                status: "cancelled",
+        // Request cancellation mutation
+        const requestCancellationMutation = useMutation({
+                mutationFn: ({ bookingId, reason }: { bookingId: number; reason: string }) =>
+                        apiRequest("PATCH", `/api/bookings/${bookingId}/request-cancellation`, {
+                                cancellationReason: reason,
                         }),
                 onSuccess: () => {
                         toast({
-                                title: "Booking berhasil dibatalkan",
-                                description: "Pemesanan Anda telah berhasil dibatalkan.",
+                                title: "Permintaan pembatalan berhasil",
+                                description: "Permintaan pembatalan Anda telah dikirim dan menunggu persetujuan pemilik usaha.",
                         });
                         queryClient.invalidateQueries({ queryKey: ["/api/bookings/my"] });
                         setCancelModalOpen(false);
                         setSelectedBooking(null);
+                        setCancellationReason("");
                 },
                 onError: (error: any) => {
                         toast({
-                                title: "Gagal membatalkan booking",
+                                title: "Gagal mengajukan pembatalan",
                                 description: error.message || "Terjadi kesalahan",
                                 variant: "destructive",
                         });
@@ -86,8 +88,11 @@ export default function MyBookings() {
         };
 
         const confirmCancel = () => {
-                if (selectedBooking) {
-                        cancelBookingMutation.mutate(selectedBooking.id);
+                if (selectedBooking && cancellationReason.trim()) {
+                        requestCancellationMutation.mutate({ 
+                                bookingId: selectedBooking.id, 
+                                reason: cancellationReason.trim() 
+                        });
                 }
         };
 
@@ -164,6 +169,15 @@ export default function MyBookings() {
                                 return <Badge variant="destructive">Ditolak</Badge>;
                         case "cancelled":
                                 return <Badge variant="destructive">Dibatalkan</Badge>;
+                        case "cancellation_requested":
+                                return (
+                                        <Badge
+                                                variant="secondary"
+                                                className="bg-yellow-500 text-white"
+                                        >
+                                                Pembatalan Diajukan
+                                        </Badge>
+                                );
                         case "completed":
                                 return (
                                         <Badge
@@ -190,6 +204,7 @@ export default function MyBookings() {
                         booking.status !== "cancelled" &&
                         booking.status !== "completed" &&
                         booking.status !== "rejected" &&
+                        booking.status !== "cancellation_requested" &&
                         hoursUntilBooking > 1 // Changed from 2 hours to 1 hour as requested
                 );
         };
