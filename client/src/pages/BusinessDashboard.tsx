@@ -46,6 +46,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Booking, Business, Facility } from "@shared/schema";
+import defaultImage from "@/assets/notfound.png";
 
 export default function BusinessDashboard() {
 	const { user } = useAuth();
@@ -53,7 +54,9 @@ export default function BusinessDashboard() {
 	const queryClient = useQueryClient();
 	const [addFacilityOpen, setAddFacilityOpen] = useState(false);
 	const [editFacilityOpen, setEditFacilityOpen] = useState(false);
-	const [selectedFacility, setSelectedFacility] = useState<any>(null);
+	const [selectedFacility, setSelectedFacility] = useState<Facility | null>(
+		null
+	);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
 	// Fetch business profile
@@ -86,8 +89,17 @@ export default function BusinessDashboard() {
 		Booking[]
 	>({
 		queryKey: ["/api/bookings/business", business?.id],
+		queryFn: async () => {
+			const req = await apiRequest(
+				"GET",
+				`/api/bookings/business/${business?.id}`
+			);
+			return await req.json();
+		},
 		enabled: !!business?.id,
 	});
+
+	console.log(business);
 
 	// Create business mutation
 	const createBusinessMutation = useMutation({
@@ -178,7 +190,7 @@ export default function BusinessDashboard() {
 	};
 
 	// Handle facility edit
-	const handleEditFacility = (facility: any) => {
+	const handleEditFacility = (facility: Facility) => {
 		setSelectedFacility(facility);
 		setEditFacilityOpen(true);
 	};
@@ -194,12 +206,12 @@ export default function BusinessDashboard() {
 	};
 
 	// Handle facility delete
-	const handleDeleteFacility = (facility: any) => {
+	const handleDeleteFacility = (facility: Facility) => {
 		setSelectedFacility(facility);
 		setDeleteConfirmOpen(true);
 	};
 
-	const confirmDelete = () => {
+	const confirmDelete = async () => {
 		if (selectedFacility) {
 			deleteFacilityMutation.mutate(selectedFacility.id);
 		}
@@ -231,7 +243,7 @@ export default function BusinessDashboard() {
 	const averageRating =
 		facilities.length > 0
 			? facilities.reduce(
-					(sum: number, facility: any) =>
+					(sum: number, facility: Facility) =>
 						sum + (facility.averageRating || 0),
 					0
 			  ) / facilities.length
@@ -562,123 +574,129 @@ export default function BusinessDashboard() {
 									</div>
 								) : (
 									<div className="space-y-4">
-										{facilities.map((facility: any) => (
-											<div
-												key={facility.id}
-												className="border border-gray-200 rounded-lg p-4"
-											>
-												<div className="flex justify-between items-start">
-													<div className="flex">
-														<img
-															src={
-																facility
-																	.images?.[0] ||
-																"https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=200&h=120"
-															}
-															alt={facility.name}
-															className="w-20 h-16 object-cover rounded-lg"
-														/>
-														<div className="ml-4">
-															<h3 className="font-semibold">
-																{facility.name}
-															</h3>
-															<p className="text-sm text-gray-600">
-																{
-																	facility.sportType
-																}{" "}
-																• Indoor
-															</p>
-															<p className="text-sm text-sport-blue font-medium">
-																Rp{" "}
-																{parseFloat(
-																	facility.pricePerHour
-																).toLocaleString()}
-																/jam
-															</p>
-															<div className="flex items-center mt-1">
-																<div className="flex text-yellow-400">
-																	{[
-																		...Array(
-																			5
-																		),
-																	].map(
+										{facilities.map(
+											(facility: Facility) => (
+												<div
+													key={facility.id}
+													className="border border-gray-200 rounded-lg p-4"
+												>
+													<div className="flex justify-between items-start">
+														<div className="flex">
+															<img
+																src={
+																	facility
+																		.images?.[0] ||
+																	defaultImage
+																}
+																alt={
+																	facility.name
+																}
+																className="w-20 h-16 object-cover rounded-lg"
+															/>
+															<div className="ml-4">
+																<h3 className="font-semibold">
+																	{
+																		facility.name
+																	}
+																</h3>
+																<p className="text-sm text-gray-600">
+																	{
+																		facility.sportType
+																	}{" "}
+																	• Indoor
+																</p>
+																<p className="text-sm text-sport-blue font-medium">
+																	Rp{" "}
+																	{parseFloat(
+																		facility.pricePerHour
+																	).toLocaleString()}
+																	/jam
+																</p>
+																<div className="flex items-center mt-1">
+																	<div className="flex text-yellow-400">
+																		{[
+																			...Array(
+																				5
+																			),
+																		].map(
+																			(
+																				_,
+																				i
+																			) => (
+																				<Star
+																					key={
+																						i
+																					}
+																					className="h-3 w-3 fill-current"
+																				/>
+																			)
+																		)}
+																	</div>
+																	<span className="text-xs text-gray-500 ml-1">
+																		{facility.averageRating?.toFixed(
+																			1
+																		) ||
+																			"N/A"}{" "}
 																		(
-																			_,
-																			i
-																		) => (
-																			<Star
-																				key={
-																					i
-																				}
-																				className="h-3 w-3 fill-current"
-																			/>
-																		)
-																	)}
+																		{facility.reviewCount ||
+																			0}{" "}
+																		ulasan)
+																	</span>
 																</div>
-																<span className="text-xs text-gray-500 ml-1">
-																	{facility.averageRating?.toFixed(
-																		1
-																	) ||
-																		"N/A"}{" "}
-																	(
-																	{facility.reviewCount ||
-																		0}{" "}
-																	ulasan)
-																</span>
 															</div>
 														</div>
-													</div>
-													<div className="flex items-center space-x-2">
-														<Badge
-															variant={
-																facility.isActive
-																	? "default"
-																	: "secondary"
-															}
-														>
-															{facility.isActive
-																? "Aktif"
-																: "Nonaktif"}
-														</Badge>
-														<DropdownMenu>
-															<DropdownMenuTrigger
-																asChild
+														<div className="flex items-center space-x-2">
+															<Badge
+																variant={
+																	facility.isActive
+																		? "default"
+																		: "secondary"
+																}
 															>
-																<Button
-																	variant="ghost"
-																	size="sm"
+																{facility.isActive
+																	? "Aktif"
+																	: "Nonaktif"}
+															</Badge>
+															<DropdownMenu>
+																<DropdownMenuTrigger
+																	asChild
 																>
-																	<MoreVertical className="h-4 w-4" />
-																</Button>
-															</DropdownMenuTrigger>
-															<DropdownMenuContent>
-																<DropdownMenuItem
-																	onClick={() =>
-																		handleEditFacility(
-																			facility
-																		)
-																	}
-																>
-																	<Edit className="h-4 w-4 mr-2" />
-																	Edit
-																</DropdownMenuItem>
-																<DropdownMenuItem
-																	onClick={() =>
-																		handleDeleteFacility(
-																			facility
-																		)
-																	}
-																	className="text-red-600"
-																>
-																	<Trash2 className="h-4 w-4 mr-2" />
-																	Hapus
-																</DropdownMenuItem>
-															</DropdownMenuContent>
-														</DropdownMenu>
+																	<Button
+																		variant="ghost"
+																		size="sm"
+																	>
+																		<MoreVertical className="h-4 w-4" />
+																	</Button>
+																</DropdownMenuTrigger>
+																<DropdownMenuContent>
+																	<DropdownMenuItem
+																		onClick={() =>
+																			handleEditFacility(
+																				facility
+																			)
+																		}
+																	>
+																		<Edit className="h-4 w-4 mr-2" />
+																		Edit
+																	</DropdownMenuItem>
+																	<DropdownMenuItem
+																		onClick={() =>
+																			handleDeleteFacility(
+																				facility
+																			)
+																		}
+																		className="text-red-600"
+																	>
+																		<Trash2 className="h-4 w-4 mr-2" />
+																		Hapus
+																	</DropdownMenuItem>
+																</DropdownMenuContent>
+															</DropdownMenu>
+														</div>
 													</div>
 												</div>
-											</div>
-										))}
+											)
+										)}
 									</div>
 								)}
 							</CardContent>

@@ -246,10 +246,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	app.delete("/api/facilities/:id", async (req, res) => {
+		try {
+			const id = Number(req.params.id);
+			const facilities = await storage.deleteFacility(id);
+			res.json(facilities);
+		} catch (error) {
+			console.error("Delete facilities error:", error);
+			res.status(500).json({ message: "Failed to delete facilities" });
+		}
+	});
+
 	app.get("/api/facilities/business/:businessId", async (req, res) => {
 		try {
 			const businessId = Number(req.params.businessId);
 			const facilities = await storage.getFacilitiesByBusinessId(
+				businessId
+			);
+			res.json(facilities);
+		} catch (error) {
+			console.error("Get facilities error:", error);
+			res.status(500).json({ message: "Failed to get facilities" });
+		}
+	});
+
+	app.get("/api/bookings/business/:businessId", async (req, res) => {
+		try {
+			const businessId = Number(req.params.businessId);
+			const facilities = await storage.getBookingsByBusinessId(
 				businessId
 			);
 			res.json(facilities);
@@ -271,6 +295,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		} catch (error) {
 			console.error("Create booking error:", error);
 			res.status(500).json({ message: "Failed to create booking" });
+		}
+	});
+
+	app.patch("/api/bookings/:bookingId/status", async (req, res) => {
+		try {
+			const bookingId = Number(req.params.bookingId);
+			const bookings = await storage.updateBookingStatus(
+				bookingId,
+				req.body.status
+			);
+			res.json(bookings);
+		} catch (error) {
+			console.error("Get bookings error:", error);
+			res.status(500).json({ message: "Failed to get bookings" });
 		}
 	});
 
