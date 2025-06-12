@@ -275,10 +275,16 @@ export default function BusinessDashboard() {
                         : 0;
 
         const pendingBookings = bookings.filter((booking: any) => booking.status === "pending");
+        const cancellationRequests = bookings.filter((booking: any) => booking.status === "cancellation_requested");
         const recentBookings = bookings.slice(0, 5);
 
         // Handle booking approval
         const handleBookingApproval = (bookingId: number, status: "approved" | "rejected") => {
+                updateBookingStatusMutation.mutate({ bookingId, status });
+        };
+
+        // Handle cancellation request approval
+        const handleCancellationApproval = (bookingId: number, status: "cancelled" | "approved") => {
                 updateBookingStatusMutation.mutate({ bookingId, status });
         };
 
@@ -781,6 +787,67 @@ export default function BusinessDashboard() {
                                                                                                                         disabled={updateBookingStatusMutation.isPending}
                                                                                                                 >
                                                                                                                         Tolak
+                                                                                                                </Button>
+                                                                                                        </div>
+                                                                                                </div>
+                                                                                        </div>
+                                                                                ))}
+                                                                        </div>
+                                                                )}
+                                                        </CardContent>
+                                                </Card>
+
+                                                {/* Cancellation Requests */}
+                                                <Card className="mb-6">
+                                                        <CardHeader>
+                                                                <CardTitle className="flex items-center justify-between">
+                                                                        <span>Permintaan Pembatalan</span>
+                                                                        <Badge variant="secondary" className="ml-2">
+                                                                                {cancellationRequests.length}
+                                                                        </Badge>
+                                                                </CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                                {cancellationRequests.length === 0 ? (
+                                                                        <div className="text-center py-4 text-gray-500">
+                                                                                Tidak ada permintaan pembatalan
+                                                                        </div>
+                                                                ) : (
+                                                                        <div className="space-y-4">
+                                                                                {cancellationRequests.map((booking: any) => (
+                                                                                        <div key={booking.id} className="border border-orange-200 bg-orange-50 rounded-lg p-4">
+                                                                                                <div className="flex justify-between items-start">
+                                                                                                        <div className="flex-1">
+                                                                                                                <h4 className="font-medium text-gray-900">{booking.facility?.name}</h4>
+                                                                                                                <p className="text-sm text-gray-600">{booking.customerName}</p>
+                                                                                                                <p className="text-sm text-gray-500">
+                                                                                                                        {new Date(booking.bookingDate).toLocaleDateString('id-ID')} • {booking.startTime} - {booking.endTime}
+                                                                                                                </p>
+                                                                                                                <p className="text-sm font-medium text-gray-900 mt-1">
+                                                                                                                        Rp {parseFloat(booking.totalPrice).toLocaleString()}
+                                                                                                                </p>
+                                                                                                                {booking.cancellationReason && (
+                                                                                                                        <div className="mt-2 p-2 bg-gray-100 rounded text-sm">
+                                                                                                                                <strong>Alasan: </strong>{booking.cancellationReason}
+                                                                                                                        </div>
+                                                                                                                )}
+                                                                                                        </div>
+                                                                                                        <div className="flex space-x-2 ml-4">
+                                                                                                                <Button
+                                                                                                                        size="sm"
+                                                                                                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                                                                                                        onClick={() => handleCancellationApproval(booking.id, "cancelled")}
+                                                                                                                        disabled={updateBookingStatusMutation.isPending}
+                                                                                                                >
+                                                                                                                        Setujui Pembatalan
+                                                                                                                </Button>
+                                                                                                                <Button
+                                                                                                                        size="sm"
+                                                                                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                                                                                        onClick={() => handleCancellationApproval(booking.id, "approved")}
+                                                                                                                        disabled={updateBookingStatusMutation.isPending}
+                                                                                                                >
+                                                                                                                        Tolak Pembatalan
                                                                                                                 </Button>
                                                                                                         </div>
                                                                                                 </div>

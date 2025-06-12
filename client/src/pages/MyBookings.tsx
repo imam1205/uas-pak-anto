@@ -508,9 +508,9 @@ export default function MyBookings() {
                                         <DialogHeader>
                                                 <DialogTitle>Konfirmasi Pembatalan</DialogTitle>
                                         </DialogHeader>
-                                        <div className="py-4">
+                                        <div className="py-4 space-y-4">
                                                 <p className="text-gray-600">
-                                                        Apakah Anda yakin ingin membatalkan pemesanan di{" "}
+                                                        Anda akan mengajukan pembatalan untuk pemesanan di{" "}
                                                         <span className="font-medium">
                                                                 {selectedBooking?.facility?.name}
                                                         </span>{" "}
@@ -521,11 +521,23 @@ export default function MyBookings() {
                                                                                 selectedBooking.bookingDate
                                                                         ).toLocaleDateString("id-ID")}
                                                         </span>
-                                                        ?
                                                 </p>
-                                                <p className="text-sm text-gray-500 mt-2">
-                                                        Pembatalan dapat dilakukan hingga 2 jam sebelum
-                                                        waktu booking.
+                                                <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                                Alasan pembatalan *
+                                                        </label>
+                                                        <textarea
+                                                                value={cancellationReason}
+                                                                onChange={(e) => setCancellationReason(e.target.value)}
+                                                                placeholder="Jelaskan alasan Anda ingin membatalkan pemesanan ini..."
+                                                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sport-blue focus:border-transparent resize-none"
+                                                                rows={3}
+                                                                required
+                                                        />
+                                                </div>
+                                                <p className="text-sm text-gray-500">
+                                                        Pembatalan dapat dilakukan hingga 1 jam sebelum waktu booking. 
+                                                        Permintaan pembatalan akan dikirim ke pemilik usaha untuk disetujui.
                                                 </p>
                                         </div>
                                         <DialogFooter>
@@ -538,11 +550,11 @@ export default function MyBookings() {
                                                 <Button
                                                         variant="destructive"
                                                         onClick={confirmCancel}
-                                                        disabled={cancelBookingMutation.isPending}
+                                                        disabled={requestCancellationMutation.isPending || !cancellationReason.trim()}
                                                 >
-                                                        {cancelBookingMutation.isPending
-                                                                ? "Membatalkan..."
-                                                                : "Ya, Batalkan"}
+                                                        {requestCancellationMutation.isPending
+                                                                ? "Mengajukan..."
+                                                                : "Ajukan Pembatalan"}
                                                 </Button>
                                         </DialogFooter>
                                 </DialogContent>
